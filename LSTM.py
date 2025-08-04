@@ -7,9 +7,9 @@ import joblib
 from datetime import timedelta
 
 # Load model dan scaler
-encoder_model = load_model("/mnt/data/encoder_model (1).keras")
-decoder_model = load_model("/mnt/data/decoder_model (1).keras")
-scaler = joblib.load("/mnt/data/scaler (4).pkl")
+encoder_model = load_model("encoder_model (1).keras")
+decoder_model = load_model("decoder_model (1).keras")
+scaler = joblib.load("scaler (4).pkl")
 
 input_len = 60
 output_len = 60
