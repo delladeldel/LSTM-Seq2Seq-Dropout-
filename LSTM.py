@@ -11,9 +11,9 @@ st.title("🚀 LSTM Seq2Seq Forecasting (Encoder-Decoder)")
 # Load model dan scaler
 @st.cache_resource
 def load_models():
-    encoder_model = load_model("encoder_model.keras")
-    decoder_model = load_model("decoder_model.keras")
-    scaler = joblib.load("scaler.pkl")  # pastikan scaler file sesuai
+    encoder_model = load_model("encoder_model (2).keras")
+    decoder_model = load_model("decoder_model (2).keras")
+    scaler = joblib.load("scaler (4).pkl")  # pastikan scaler file sesuai
     return encoder_model, decoder_model, scaler
 
 encoder_model, decoder_model, scaler = load_models()
