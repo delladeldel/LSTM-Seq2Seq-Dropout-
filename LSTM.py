@@ -1,78 +1,70 @@
 import streamlit as st
-import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from tensorflow.keras.models import load_model
 import joblib
-from datetime import timedelta
+from keras.models import load_model
 
-# Load model dan scaler
+# --- Load model dan scaler ---
 encoder_model = load_model("encoder_model (1).keras")
 decoder_model = load_model("decoder_model (1).keras")
 scaler = joblib.load("scaler (4).pkl")
 
-input_len = 60
-output_len = 60
-n_features = 1
+# --- Fungsi prediksi seq2seq iteratif ---
+def predict_seq2seq(input_seq, n_steps):
+    # Reshape dan scale
+    input_seq = np.array(input_seq).reshape(1, -1, 1)
+    input_seq_scaled = scaler.transform(input_seq[0])  # hanya nilai (batch, timesteps, 1)
+    input_seq_scaled = input_seq_scaled.reshape(1, -1, 1)
 
-st.title("Forecasting 60 Step ke Depan - LSTM Seq2Seq")
+    # Encode input
+    states_value = encoder_model.predict(input_seq_scaled)
 
-uploaded_file = st.file_uploader("Upload file CSV", type="csv")
+    # Buat input decoder awal (timestep = 1)
+    target_seq = np.zeros((1, 1, 1))
 
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
+    decoded_sequence = []
 
-    if 'ddate' not in df.columns or 'tag_value' not in df.columns:
-        st.error("File harus memiliki kolom 'ddate' dan 'tag_value'")
-    else:
-        df['ddate'] = pd.to_datetime(df['ddate'])
-        df = df.sort_values('ddate')
+    for _ in range(n_steps):
+        output_tokens = decoder_model.predict([target_seq] + states_value)
 
-        st.subheader("Data Terakhir")
-        st.dataframe(df.tail(10))
+        yhat = output_tokens[:, -1, 0]
+        decoded_sequence.append(yhat[0])
 
-        # Ambil 60 data terakhir
-        data_input = df['tag_value'].values[-input_len:]
-        last_ddate = df['ddate'].iloc[-1]
+        # Update target_seq (jadi output sebelumnya)
+        target_seq = np.array(yhat).reshape(1, 1, 1)
 
-        # Normalisasi
-        data_input = scaler.transform(data_input.reshape(-1, 1))
-        encoder_input = data_input.reshape(1, input_len, n_features)
+    # Balik scale hasil prediksi
+    decoded_sequence = np.array(decoded_sequence).reshape(-1, 1)
+    decoded_sequence = scaler.inverse_transform(decoded_sequence)
 
-        # Dapatkan state dari encoder
-        state_h, state_c = encoder_model.predict(encoder_input)
-        states = [state_h, state_c]
+    return decoded_sequence.flatten()
 
-        # Inisialisasi decoder
-        decoder_input = np.zeros((1, 1, n_features))
-        predictions_scaled = []
+# --- Streamlit UI ---
+st.title("Prediksi 60 Langkah ke Depan - Seq2Seq LSTM")
 
-        for _ in range(output_len):
-            pred, h, c = decoder_model.predict([decoder_input] + states, verbose=0)
-            pred_value = pred[0, 0, 0]
-            predictions_scaled.append(pred_value)
+st.write("Masukkan 60 nilai historis (tag_value) untuk memprediksi 60 langkah ke depan.")
 
-            # Update input dan state
-            decoder_input = np.array(pred_value).reshape(1, 1, 1)
-            states = [h, c]
+# Input manual atau file
+input_data = st.text_area("Masukkan 60 nilai historis (pisahkan dengan koma)", placeholder="Contoh: 2.3, 2.4, 2.5, ..., 3.1")
 
-        # Kembalikan ke skala asli
-        predictions = scaler.inverse_transform(np.array(predictions_scaled).reshape(-1, 1))
+if st.button("Prediksi"):
+    try:
+        # Parse input
+        input_list = [float(x.strip()) for x in input_data.strip().split(",")]
+        if len(input_list) != 60:
+            st.error("Harus 60 nilai historis.")
+        else:
+            prediction = predict_seq2seq(input_list, 60)
+            st.success("Prediksi berhasil!")
 
-        # Buat time range prediksi
-        time_interval = df['ddate'].diff().mode()[0] if df['ddate'].diff().mode().size > 0 else timedelta(seconds=10)
-        future_dates = [last_ddate + (i + 1) * time_interval for i in range(output_len)]
-        pred_df = pd.DataFrame({'ddate': future_dates, 'predicted_value': predictions.flatten()})
-
-        # Plot hasil
-        st.subheader("Plot Prediksi")
-        fig, ax = plt.subplots()
-        ax.plot(df['ddate'].iloc[-200:], df['tag_value'].iloc[-200:], label='Data Historis')
-        ax.plot(pred_df['ddate'], pred_df['predicted_value'], label='Prediksi', color='red')
-        ax.legend()
-        plt.xticks(rotation=45)
-        st.pyplot(fig)
-
-        st.subheader("Prediksi 10 Terakhir")
-        st.dataframe(pred_df.tail(10))
+            # Tampilkan hasil
+            fig, ax = plt.subplots()
+            ax.plot(range(60), prediction, label="Prediksi", color='orange')
+            ax.set_title("Hasil Prediksi 60 Langkah ke Depan")
+            ax.set_xlabel("Timestep")
+            ax.set_ylabel("Value")
+            ax.legend()
+            st.pyplot(fig)
+    except Exception as e:
+        st.error(f"Terjadi error: {str(e)}")
 
