@@ -24,7 +24,7 @@ decoder_training_model = load_model("decoder_model (1).keras")
 scaler = joblib.load("scaler (4).pkl")
 
 # =====================
-# BANGUN MODEL INFERENCE DECODER
+# BANGUN MODEL INFERENCE DECODER (FINAL)
 # =====================
 decoder_input_inf = Input(shape=(1, n_features))
 decoder_state_input_h = Input(shape=(latent_dim,))
@@ -32,15 +32,14 @@ decoder_state_input_c = Input(shape=(latent_dim,))
 decoder_states_inputs = [decoder_state_input_h, decoder_state_input_c]
 
 # Ambil layer dari model training
-decoder_lstm_layer = decoder_training_model.layers[3]  # LSTM
-decoder_dense_1 = decoder_training_model.layers[5]     # TimeDistributed(Dense 32 relu)
-decoder_dense_2 = decoder_training_model.layers[6]     # TimeDistributed(Dense 1)
+decoder_lstm_layer = decoder_training_model.layers[3]
+decoder_dense_1 = decoder_training_model.layers[5]
+decoder_dense_2 = decoder_training_model.layers[6]
 
-# Pemanggilan layer (FIXED unpack)
-decoder_lstm_outputs = decoder_lstm_layer(
+# FIXED: langsung unpack, tidak simpan tuple
+decoder_outputs, state_h, state_c = decoder_lstm_layer(
     decoder_input_inf, initial_state=decoder_states_inputs
 )
-decoder_outputs, state_h, state_c = decoder_lstm_outputs
 
 decoder_outputs = decoder_dense_1(decoder_outputs)
 decoder_outputs = decoder_dense_2(decoder_outputs)
@@ -49,6 +48,7 @@ decoder_model_inf = Model(
     [decoder_input_inf] + decoder_states_inputs,
     [decoder_outputs, state_h, state_c]
 )
+
 
 # =====================
 # STREAMLIT APP
