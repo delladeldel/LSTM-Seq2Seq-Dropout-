@@ -14,7 +14,7 @@ from tensorflow.keras.layers import Input, LSTM, TimeDistributed, Dense
 input_len = 60
 output_len = 60
 n_features = 1
-latent_dim = 64  # sesuai decoder LSTM (64 units)
+latent_dim = 64  # sesuai decoder LSTM kedua (64 units)
 
 # =====================
 # LOAD MODEL & SCALER
@@ -24,7 +24,7 @@ decoder_training_model = load_model("decoder_model (1).keras")
 scaler = joblib.load("scaler (4).pkl")
 
 # =====================
-# BANGUN MODEL INFERENCE DECODER (FINAL)
+# BANGUN MODEL INFERENCE DECODER (FIXED UNPACKING)
 # =====================
 decoder_input_inf = Input(shape=(1, n_features))
 decoder_state_input_h = Input(shape=(latent_dim,))
@@ -36,11 +36,10 @@ decoder_lstm_layer = decoder_training_model.layers[3]
 decoder_dense_1 = decoder_training_model.layers[5]
 decoder_dense_2 = decoder_training_model.layers[6]
 
-# FIXED: langsung unpack, tidak simpan tuple
+# FIXED: langsung unpack output dari LSTM
 decoder_outputs, state_h, state_c = decoder_lstm_layer(
     decoder_input_inf, initial_state=decoder_states_inputs
 )
-
 decoder_outputs = decoder_dense_1(decoder_outputs)
 decoder_outputs = decoder_dense_2(decoder_outputs)
 
@@ -49,24 +48,23 @@ decoder_model_inf = Model(
     [decoder_outputs, state_h, state_c]
 )
 
-
 # =====================
 # STREAMLIT APP
 # =====================
-st.title("LSTM Seq2Seq Forecasting 60 Langkah ke Depan")
+st.title("📈 LSTM Seq2Seq Forecasting - 60 Steps Ahead")
 
-uploaded_file = st.file_uploader("Upload file CSV (harus punya kolom 'ddate' & 'tag_value')", type="csv")
+uploaded_file = st.file_uploader("📤 Upload file CSV (harus ada kolom 'ddate' & 'tag_value')", type="csv")
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
 
     if 'ddate' not in df.columns or 'tag_value' not in df.columns:
-        st.error("File harus memiliki kolom 'ddate' dan 'tag_value'")
+        st.error("❌ File harus memiliki kolom 'ddate' dan 'tag_value'")
     else:
         df['ddate'] = pd.to_datetime(df['ddate'])
         df = df.sort_values('ddate')
 
-        st.subheader("Preview Data")
+        st.subheader("🔍 Preview Data")
         st.dataframe(df.tail(10))
 
         # Ambil 60 data terakhir
@@ -102,8 +100,8 @@ if uploaded_file is not None:
         future_dates = [last_ddate + (i + 1) * time_interval for i in range(output_len)]
         pred_df = pd.DataFrame({'ddate': future_dates, 'predicted_value': predictions.flatten()})
 
-        # Plot
-        st.subheader("Prediksi 60 Langkah ke Depan")
+        # Plot hasil prediksi
+        st.subheader("📊 Prediksi 60 Langkah ke Depan")
         fig, ax = plt.subplots()
         ax.plot(df['ddate'].iloc[-200:], df['tag_value'].iloc[-200:], label='Data Historis')
         ax.plot(pred_df['ddate'], pred_df['predicted_value'], label='Prediksi', color='red')
@@ -111,5 +109,15 @@ if uploaded_file is not None:
         plt.xticks(rotation=45)
         st.pyplot(fig)
 
-        st.subheader("Prediksi Terakhir")
+        # Tabel hasil
+        st.subheader("📄 Tabel Prediksi Terakhir")
         st.dataframe(pred_df.tail(10))
+
+        # Download button
+        csv = pred_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="⬇️ Download Hasil Prediksi (CSV)",
+            data=csv,
+            file_name='forecast_60_steps.csv',
+            mime='text/csv',
+        )
